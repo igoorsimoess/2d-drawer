@@ -291,3 +291,39 @@ class Figura:
         for primitivo in self.primitivos:
             contagem[primitivo.tipo] = contagem.get(primitivo.tipo, 0) + 1
         return contagem
+
+
+def primitivo_de_payload(dados: object) -> Primitivo:
+    """Constroi um primitivo a partir de um payload em coordenadas de pixel.
+
+    E o formato simetrico ao de `Primitivo.para_dict`: o que a API devolve em
+    /api/estado e o que ela aceita em /api/primitivo, sem o id. Nao confundir
+    com o formato do arquivo, que usa coordenadas normalizadas e fica em
+    `serializacao.py`.
+    """
+    if not isinstance(dados, dict):
+        raise ValueError("o payload deve ser um objeto")
+
+    tipo = dados.get("tipo")
+    if not tipo:
+        raise ValueError('campo obrigatorio "tipo" ausente')
+    if tipo not in TIPOS:
+        raise ValueError(f'tipo desconhecido "{tipo}"')
+
+    cor = Cor.de_dict(dados["cor"]) if "cor" in dados else Cor(0, 0, 0)
+    esp = sanitizar_espessura(dados.get("esp", 1))
+
+    def ler(campo: str) -> Ponto2D:
+        if campo not in dados:
+            raise ValueError(f'campo obrigatorio "{campo}" ausente')
+        return Ponto2D.de_dict(dados[campo], campo)
+
+    if tipo == "ponto":
+        return Ponto(ler("p"), cor, esp)
+    if tipo == "reta":
+        return Reta(ler("p1"), ler("p2"), cor, esp)
+    if tipo == "triangulo":
+        return Triangulo(ler("p1"), ler("p2"), ler("p3"), cor, esp)
+    if tipo == "retangulo":
+        return Retangulo(ler("p1"), ler("p2"), cor, esp)
+    return Circulo(ler("centro"), ler("borda"), cor, esp)
