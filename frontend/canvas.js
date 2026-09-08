@@ -23,7 +23,9 @@ const logEl = document.getElementById("log");
 const CLIQUES = { ponto: 1, reta: 2, circulo: 2, retangulo: 2, triangulo: 3 };
 
 let estado = { largura: 800, altura: 600, figura: [], selecionado: null };
-let pendentes = [];
+let pendentes = []; /* cliques acumulados das ferramentas sem elastico */
+let ancora = null; /* primeiro ponto das ferramentas com elastico */
+let cursor = null; /* ultima posicao conhecida do mouse, em pixels */
 
 /* ---------------------------------------------------------------- registro */
 
@@ -184,14 +186,98 @@ function coordenadas(evento) {
 
 /* ------------------------------------------------------------------ desenho */
 
+/*
+ * Ferramentas com elastico: o primeiro clique ancora, o movimento do mouse
+ * redesenha a previa na sobreposicao e o segundo clique confirma.
+ *
+ * A previa e tracada com a API 2D do navegador, e nao com os algoritmos do
+ * backend. E um guia transitorio que nunca vira pixel da imagem: o desenho
+ * definitivo continua vindo inteiro do Python. Fazer a previa no servidor
+ * exigiria uma mensagem por movimento do mouse, ou seja o WebSocket que o
+ * CLAUDE.md deixa para depois.
+ */
+const ELASTICOS = new Set(["reta", "circulo", "retangulo"]);
+
 function limparSobreposicao() {
   contextoSobreposicao.clearRect(0, 0, sobreposicao.width, sobreposicao.height);
 }
 
+/** Redesenha a sobreposicao inteira: elastico e marcador da ancora. */
+function renderizarSobreposicao() {
+  limparSobreposicao();
+  desenharElastico();
+}
+
+/** Traca a previa do primitivo entre a ancora e a posicao atual do cursor. */
+function desenharElastico() {
+  if (!ancora || !cursor) return;
+  const ferramenta = ferramentaEl.value;
+  if (!ELASTICOS.has(ferramenta)) return;
+
+  const ctx = contextoSobreposicao;
+  ctx.save();
+  ctx.strokeStyle = corEl.value;
+  ctx.lineWidth = espessuraAtual();
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.globalAlpha = 0.7;
+
+  ctx.beginPath();
+  if (ferramenta === "reta") {
+    ctx.moveTo(ancora.x, ancora.y);
+    ctx.lineTo(cursor.x, cursor.y);
+  } else if (ferramenta === "circulo") {
+    const raio = Math.round(Math.hypot(cursor.x - ancora.x, cursor.y - ancora.y));
+    if (raio > 0) ctx.arc(ancora.x, ancora.y, raio, 0, Math.PI * 2);
+  } else {
+    ctx.rect(
+      Math.min(ancora.x, cursor.x),
+      Math.min(ancora.y, cursor.y),
+      Math.abs(cursor.x - ancora.x),
+      Math.abs(cursor.y - ancora.y),
+    );
+  }
+  ctx.stroke();
+  ctx.restore();
+
+  desenharAncora();
+}
+
+/** Cruz discreta no ponto ancorado, para deixar claro onde o elastico prende. */
+function desenharAncora() {
+  const ctx = contextoSobreposicao;
+  const braco = 6;
+  ctx.save();
+  ctx.strokeStyle = "#111827";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(ancora.x - braco, ancora.y);
+  ctx.lineTo(ancora.x + braco, ancora.y);
+  ctx.moveTo(ancora.x, ancora.y - braco);
+  ctx.lineTo(ancora.x, ancora.y + braco);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/* Limita o redesenho da previa a um por quadro, para que arrastar o mouse
+   nao dispare dezenas de tracados por segundo. */
+let quadroAgendado = false;
+
+function agendarQuadro() {
+  if (quadroAgendado) return;
+  quadroAgendado = true;
+  requestAnimationFrame(() => {
+    quadroAgendado = false;
+    renderizarSobreposicao();
+  });
+}
+
 function cancelarPendentes() {
-  if (pendentes.length > 0) registrar("Primitivo em andamento cancelado.");
+  const havia = ancora !== null || pendentes.length > 0;
+  ancora = null;
   pendentes = [];
   limparSobreposicao();
+  if (havia) registrar("Primitivo em andamento cancelado.");
 }
 
 /** Monta o payload em coordenadas de pixel esperado por /api/primitivo. */
@@ -216,10 +302,27 @@ async function criarPrimitivo(ferramenta, pontos) {
 
 async function aoClicar(evento) {
   const ferramenta = ferramentaEl.value;
+  const ponto = coordenadas(evento);
+
+  if (ELASTICOS.has(ferramenta)) {
+    if (ancora === null) {
+      ancora = ponto;
+      cursor = ponto;
+      renderizarSobreposicao();
+      registrar(`${ferramenta}: ancorado em (${ponto.x},${ponto.y}). Mova e clique para fechar.`);
+      return;
+    }
+    const inicio = ancora;
+    ancora = null;
+    limparSobreposicao();
+    await criarPrimitivo(ferramenta, [inicio, ponto]);
+    return;
+  }
+
   const necessarios = CLIQUES[ferramenta];
   if (!necessarios) return;
 
-  pendentes.push(coordenadas(evento));
+  pendentes.push(ponto);
   if (pendentes.length < necessarios) {
     const faltam = necessarios - pendentes.length;
     registrar(`${ferramenta}: ${pendentes.length} de ${necessarios} pontos (faltam ${faltam}).`);
@@ -232,14 +335,24 @@ async function aoClicar(evento) {
   await criarPrimitivo(ferramenta, pontos);
 }
 
+function aoMover(evento) {
+  cursor = coordenadas(evento);
+  if (ancora !== null) agendarQuadro();
+}
+
 /* ------------------------------------------------------------------ eventos */
 
 sobreposicao.addEventListener("click", aoClicar);
+sobreposicao.addEventListener("mousemove", aoMover);
 
 ferramentaEl.addEventListener("change", () => {
   cancelarPendentes();
   registrar(`Ferramenta: ${ferramentaEl.value}.`);
 });
+
+/* Mudar cor ou espessura com o elastico ativo atualiza a previa na hora. */
+corEl.addEventListener("input", agendarQuadro);
+espessuraEl.addEventListener("input", agendarQuadro);
 
 document.addEventListener("keydown", (evento) => {
   if (evento.key === "Escape") cancelarPendentes();
