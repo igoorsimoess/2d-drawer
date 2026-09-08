@@ -343,7 +343,8 @@ function cancelarPendentes() {
   const havia = ancora !== null || pendentes.length > 0;
   ancora = null;
   pendentes = [];
-  limparSobreposicao();
+  /* Redesenha em vez de so limpar, para nao apagar o destaque da selecao. */
+  renderizarSobreposicao();
   if (havia) registrar("Primitivo em andamento cancelado.");
 }
 
@@ -427,7 +428,6 @@ async function removerSelecionada() {
   if (!resposta) return;
   registrar(`Removido ${id}.`);
   await atualizarTudo();
-  renderizarSobreposicao();
 }
 
 function aoMover(evento) {
