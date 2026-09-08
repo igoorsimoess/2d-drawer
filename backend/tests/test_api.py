@@ -244,3 +244,25 @@ class TestExportarEImportar:
         resposta = cliente.post("/api/figura/importar", json={"reta": []})
         assert resposta.status_code == 400
         assert "figura" in resposta.json()["erro"]
+
+
+class TestCaixaEnvolvente:
+    """A caixa vai no /api/estado para o cliente destacar a selecao."""
+
+    def test_todo_primitivo_traz_a_caixa(self, cliente):
+        criar_reta(cliente)
+        primitivo = cliente.get("/api/estado").json()["figura"][0]
+        assert primitivo["caixa"] == [100, 100, 300, 100]
+
+    def test_caixa_do_circulo_cobre_a_circunferencia(self, cliente):
+        cliente.post("/api/primitivo", json={
+            "tipo": "circulo", "centro": {"x": 400, "y": 300},
+            "borda": {"x": 450, "y": 300}, "cor": VERMELHO, "esp": 1,
+        })
+        primitivo = cliente.get("/api/estado").json()["figura"][0]
+        assert primitivo["caixa"] == [350, 250, 450, 350]
+
+    def test_caixa_vem_na_resposta_da_selecao(self, cliente):
+        criar_reta(cliente)
+        resposta = cliente.post("/api/selecionar", json={"x": 200, "y": 100}).json()
+        assert resposta["primitivo"]["caixa"] == [100, 100, 300, 100]

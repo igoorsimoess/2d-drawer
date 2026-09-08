@@ -18,6 +18,9 @@ const filtroEl = document.getElementById("filtro");
 const resumoEl = document.getElementById("resumo");
 const listaEl = document.getElementById("lista");
 const logEl = document.getElementById("log");
+const semSelecaoEl = document.getElementById("semSelecao");
+const detalhesEl = document.getElementById("detalhes");
+const removerEl = document.getElementById("remover");
 
 /* Quantos cliques cada ferramenta precisa para fechar um primitivo. */
 const CLIQUES = { ponto: 1, reta: 2, circulo: 2, retangulo: 2, triangulo: 3 };
@@ -57,11 +60,12 @@ async function pedir(rota, opcoes = {}) {
 }
 
 async function enviarJson(rota, dados, metodo = "POST") {
-  return pedir(rota, {
-    method: metodo,
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(dados),
-  });
+  const opcoes = { method: metodo };
+  if (dados !== null) {
+    opcoes.headers = { "Content-Type": "application/json" };
+    opcoes.body = JSON.stringify(dados);
+  }
+  return pedir(rota, opcoes);
 }
 
 /* -------------------------------------------------------------- renderizacao */
@@ -102,6 +106,7 @@ function ajustarDimensoes() {
 async function atualizarTudo() {
   await carregarEstado();
   await carregarImagem();
+  renderizarSobreposicao();
 }
 
 /* ------------------------------------------------------------------ painel */
@@ -118,7 +123,42 @@ function descrever(primitivo) {
   }
 }
 
+/** Primitivo atualmente selecionado, ou null. */
+function selecionado() {
+  return estado.figura.find((p) => p.id === estado.selecionado) || null;
+}
+
+/** Mostra os dados da figura selecionada, para conferencia antes de remover. */
+function renderizarSelecao() {
+  const alvo = selecionado();
+  semSelecaoEl.hidden = alvo !== null;
+  detalhesEl.hidden = alvo === null;
+  removerEl.hidden = alvo === null;
+  detalhesEl.innerHTML = "";
+  if (!alvo) return;
+
+  const linhas = [
+    ["id", alvo.id],
+    ["tipo", alvo.tipo],
+    ["esp", String(alvo.esp)],
+    ["pontos", descrever(alvo)],
+  ];
+  for (const [rotulo, valor] of linhas) {
+    detalhesEl.appendChild(Object.assign(document.createElement("dt"), { textContent: rotulo }));
+    detalhesEl.appendChild(Object.assign(document.createElement("dd"), { textContent: valor }));
+  }
+
+  detalhesEl.appendChild(Object.assign(document.createElement("dt"), { textContent: "cor" }));
+  const valorCor = document.createElement("dd");
+  const amostra = document.createElement("span");
+  amostra.className = "amostra";
+  amostra.style.background = paraHex(alvo.cor);
+  valorCor.append(amostra, paraHex(alvo.cor));
+  detalhesEl.appendChild(valorCor);
+}
+
 function renderizarPainel() {
+  renderizarSelecao();
   const total = estado.figura.length;
   if (total === 0) {
     resumoEl.textContent = "Nenhum primitivo na figura.";
@@ -142,6 +182,7 @@ function renderizarPainel() {
     texto.textContent = `${primitivo.id} esp=${primitivo.esp} ${descrever(primitivo)}`;
     item.appendChild(texto);
 
+    if (primitivo.id === estado.selecionado) item.className = "selecionado";
     listaEl.appendChild(item);
   }
 }
@@ -205,7 +246,32 @@ function limparSobreposicao() {
 /** Redesenha a sobreposicao inteira: elastico e marcador da ancora. */
 function renderizarSobreposicao() {
   limparSobreposicao();
+  desenharSelecao();
   desenharElastico();
+}
+
+/**
+ * Contorno tracejado ao redor da figura selecionada.
+ * Fica na sobreposicao, entao a imagem rasterizada nao e alterada.
+ */
+function desenharSelecao() {
+  const alvo = selecionado();
+  if (!alvo || !alvo.caixa) return;
+
+  const folga = Math.ceil(alvo.esp / 2) + 4;
+  const [x0, y0, x1, y1] = alvo.caixa;
+  const ctx = contextoSobreposicao;
+  ctx.save();
+  ctx.strokeStyle = "#2563eb";
+  ctx.lineWidth = 1;
+  ctx.setLineDash([6, 4]);
+  ctx.strokeRect(
+    x0 - folga + 0.5,
+    y0 - folga + 0.5,
+    x1 - x0 + folga * 2,
+    y1 - y0 + folga * 2,
+  );
+  ctx.restore();
 }
 
 /** Traca a previa do primitivo entre a ancora e a posicao atual do cursor. */
@@ -304,6 +370,11 @@ async function aoClicar(evento) {
   const ferramenta = ferramentaEl.value;
   const ponto = coordenadas(evento);
 
+  if (ferramenta === "selecionar") {
+    await selecionarEm(ponto);
+    return;
+  }
+
   if (ELASTICOS.has(ferramenta)) {
     if (ancora === null) {
       ancora = ponto;
@@ -335,6 +406,29 @@ async function aoClicar(evento) {
   await criarPrimitivo(ferramenta, pontos);
 }
 
+async function selecionarEm(ponto) {
+  const resposta = await enviarJson("/api/selecionar", ponto);
+  if (!resposta) return;
+  estado.selecionado = resposta.selecionado;
+  registrar(
+    resposta.selecionado
+      ? `Selecionado ${resposta.selecionado}: ${descrever(resposta.primitivo)}`
+      : "Nenhuma figura sob o clique. Selecao limpa.",
+  );
+  renderizarPainel();
+  renderizarSobreposicao();
+}
+
+async function removerSelecionada() {
+  if (!estado.selecionado) return;
+  const id = estado.selecionado;
+  const resposta = await enviarJson(`/api/primitivo/${id}`, null, "DELETE");
+  if (!resposta) return;
+  registrar(`Removido ${id}.`);
+  await atualizarTudo();
+  renderizarSobreposicao();
+}
+
 function aoMover(evento) {
   cursor = coordenadas(evento);
   if (ancora !== null) agendarQuadro();
@@ -354,8 +448,20 @@ ferramentaEl.addEventListener("change", () => {
 corEl.addEventListener("input", agendarQuadro);
 espessuraEl.addEventListener("input", agendarQuadro);
 
+removerEl.addEventListener("click", removerSelecionada);
+
 document.addEventListener("keydown", (evento) => {
-  if (evento.key === "Escape") cancelarPendentes();
+  if (evento.key === "Escape") {
+    cancelarPendentes();
+    return;
+  }
+  /* Delete so remove fora de campos de texto, para nao atrapalhar a digitacao. */
+  const digitando = ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName);
+  if ((evento.key === "Delete" || evento.key === "Backspace") && !digitando) {
+    if (!estado.selecionado) return;
+    evento.preventDefault();
+    removerSelecionada();
+  }
 });
 
 document.getElementById("redesenhar").addEventListener("click", async () => {

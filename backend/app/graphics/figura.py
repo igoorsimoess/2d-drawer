@@ -62,12 +62,17 @@ class Primitivo(ABC):
         return (min(xs), min(ys), max(xs), max(ys))
 
     def para_dict(self) -> dict:
-        """Resumo em coordenadas de pixel, usado pela interface."""
+        """Resumo em coordenadas de pixel, usado pela interface.
+
+        Inclui a caixa envolvente para que o destaque de selecao no cliente
+        nao precise reimplementar a geometria de cada tipo.
+        """
         return {
             "id": self.id,
             "tipo": self.tipo,
             "cor": self.cor.para_dict(),
             "esp": self.esp,
+            "caixa": list(self.caixa()),
             **self._params(),
         }
 

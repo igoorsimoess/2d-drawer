@@ -23,6 +23,7 @@
           <option value="circulo">Circulo (centro &rarr; borda)</option>
           <option value="retangulo">Retangulo (canto &rarr; canto)</option>
           <option value="triangulo">Triangulo (3 cliques)</option>
+          <option value="selecionar">Selecionar (clique na figura)</option>
         </select>
       </div>
 
@@ -66,6 +67,15 @@
       </div>
 
       <aside id="painel">
+        <section id="areaSelecao">
+          <h2>Selecao</h2>
+          <p id="semSelecao">Use a ferramenta <strong>Selecionar</strong> e clique sobre uma figura.</p>
+          <dl id="detalhes" hidden></dl>
+          <button id="remover" type="button" class="perigo" hidden>
+            Remover selecionada (Delete)
+          </button>
+        </section>
+
         <section>
           <h2>Estrutura de dados</h2>
           <p id="resumo">Nenhum primitivo na figura.</p>
