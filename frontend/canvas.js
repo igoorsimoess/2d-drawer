@@ -21,6 +21,7 @@ const logEl = document.getElementById("log");
 const semSelecaoEl = document.getElementById("semSelecao");
 const detalhesEl = document.getElementById("detalhes");
 const removerEl = document.getElementById("remover");
+const arquivoEl = document.getElementById("arquivo");
 
 /* Quantos cliques cada ferramenta precisa para fechar um primitivo. */
 const CLIQUES = { ponto: 1, reta: 2, circulo: 2, retangulo: 2, triangulo: 3 };
@@ -434,6 +435,71 @@ function aoMover(evento) {
   if (ancora !== null) agendarQuadro();
 }
 
+/* -------------------------------------------------------------- persistencia */
+
+/** Entrega um blob ao usuario como download. */
+function baixar(blob, nome) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = nome;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  /* A revogacao imediata pode cancelar o download em alguns navegadores. */
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function carimboDeTempo() {
+  const agora = new Date();
+  const doisDigitos = (v) => String(v).padStart(2, "0");
+  return (
+    `${agora.getFullYear()}${doisDigitos(agora.getMonth() + 1)}${doisDigitos(agora.getDate())}` +
+    `-${doisDigitos(agora.getHours())}${doisDigitos(agora.getMinutes())}${doisDigitos(agora.getSeconds())}`
+  );
+}
+
+/**
+ * Exporta a figura em JSON e a imagem em PNG.
+ *
+ * O PNG sai do proprio canvas, que e copia byte a byte do buffer NumPy, entao
+ * o resultado e o mesmo que gerar a imagem no servidor - sem precisar de uma
+ * biblioteca de codificacao de imagem no backend.
+ */
+async function exportar() {
+  const dados = await pedir("/api/figura/exportar");
+  if (!dados) return;
+
+  const nome = `figura-${carimboDeTempo()}`;
+  baixar(
+    new Blob([JSON.stringify(dados, null, 2)], { type: "application/json" }),
+    `${nome}.json`,
+  );
+  tela.toBlob((imagem) => {
+    if (imagem) baixar(imagem, `${nome}.png`);
+    else registrar("Nao foi possivel gerar o PNG da imagem.", true);
+  }, "image/png");
+
+  registrar(`Exportados ${nome}.json e ${nome}.png (${estado.figura.length} primitivo(s)).`);
+}
+
+/** Le o arquivo escolhido e substitui a figura atual pelo seu conteudo. */
+async function importarArquivo(arquivo) {
+  let dados;
+  try {
+    dados = JSON.parse(await arquivo.text());
+  } catch (erro) {
+    registrar(`${arquivo.name}: JSON invalido (${erro.message})`, true);
+    return;
+  }
+
+  const resposta = await enviarJson("/api/figura/importar", dados);
+  if (!resposta) return;
+  cancelarPendentes();
+  registrar(`Importados ${resposta.importados} primitivo(s) de ${arquivo.name}.`);
+  await atualizarTudo();
+}
+
 /* ------------------------------------------------------------------ eventos */
 
 sobreposicao.addEventListener("click", aoClicar);
@@ -449,6 +515,17 @@ corEl.addEventListener("input", agendarQuadro);
 espessuraEl.addEventListener("input", agendarQuadro);
 
 removerEl.addEventListener("click", removerSelecionada);
+
+document.getElementById("exportar").addEventListener("click", exportar);
+
+document.getElementById("importar").addEventListener("click", () => arquivoEl.click());
+
+arquivoEl.addEventListener("change", async () => {
+  const arquivo = arquivoEl.files[0];
+  /* Zera o campo para que escolher o mesmo arquivo de novo dispare o evento. */
+  arquivoEl.value = "";
+  if (arquivo) await importarArquivo(arquivo);
+});
 
 document.addEventListener("keydown", (evento) => {
   if (evento.key === "Escape") {

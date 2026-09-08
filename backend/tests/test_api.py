@@ -266,3 +266,55 @@ class TestCaixaEnvolvente:
         criar_reta(cliente)
         resposta = cliente.post("/api/selecionar", json={"x": 200, "y": 100}).json()
         assert resposta["primitivo"]["caixa"] == [100, 100, 300, 100]
+
+
+class TestOrdemDeDesenho:
+    """O formato agrupa por tipo, entao a ordem entre tipos nao sobrevive ao arquivo.
+
+    E uma limitacao do formato exigido, nao da implementacao: nao ha onde
+    gravar a ordem global de insercao. So aparece quando figuras de tipos
+    diferentes se sobrepoem.
+    """
+
+    CIRCULO = {
+        "tipo": "circulo", "centro": {"x": 400, "y": 300}, "borda": {"x": 560, "y": 300},
+        "cor": {"r": 102, "g": 0, "b": 255}, "esp": 6,
+    }
+    TRIANGULO = {
+        "tipo": "triangulo", "p1": {"x": 406, "y": 93}, "p2": {"x": 667, "y": 296},
+        "p3": {"x": 536, "y": 427}, "cor": {"r": 255, "g": 153, "b": 153}, "esp": 6,
+    }
+
+    def _ciclo(self, cliente, primitivos):
+        for payload in primitivos:
+            cliente.post("/api/primitivo", json=payload)
+        antes = cliente.get("/api/imagem").content
+        arquivo = cliente.get("/api/figura/exportar").json()
+        cliente.post("/api/limpar", json={"figura": True})
+        cliente.post("/api/figura/importar", json=arquivo)
+        return antes, cliente.get("/api/imagem").content
+
+    def test_sem_sobreposicao_a_imagem_e_identica(self, cliente):
+        separados = [
+            {**self.CIRCULO, "centro": {"x": 150, "y": 150}, "borda": {"x": 220, "y": 150}},
+            {**self.TRIANGULO, "p1": {"x": 500, "y": 400}, "p2": {"x": 700, "y": 400},
+             "p3": {"x": 600, "y": 550}},
+        ]
+        antes, depois = self._ciclo(cliente, separados)
+        assert antes == depois
+
+    def test_na_ordem_dos_tipos_a_imagem_e_identica(self, cliente):
+        """triangulo vem antes de circulo em TIPOS, entao a ordem se mantem."""
+        antes, depois = self._ciclo(cliente, [self.TRIANGULO, self.CIRCULO])
+        assert antes == depois
+
+    def test_fora_da_ordem_dos_tipos_a_sobreposicao_muda(self, cliente):
+        """O circulo foi desenhado por cima, mas volta do arquivo por baixo."""
+        antes, depois = self._ciclo(cliente, [self.CIRCULO, self.TRIANGULO])
+        assert antes != depois
+
+    def test_a_figura_em_si_e_sempre_preservada(self, cliente):
+        """Apenas a ordem muda: os primitivos e seus parametros voltam iguais."""
+        self._ciclo(cliente, [self.CIRCULO, self.TRIANGULO])
+        contagem = cliente.get("/api/estado").json()["contagem"]
+        assert contagem == {"circulo": 1, "triangulo": 1}
