@@ -1,0 +1,138 @@
+:root {
+  --fundo: #eef1f5;
+  --superficie: #ffffff;
+  --borda: #c9d1dc;
+  --texto: #1d2733;
+  --suave: #64748b;
+  --destaque: #2563eb;
+  --perigo: #b91c1c;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 16px;
+  background: var(--fundo);
+  color: var(--texto);
+  font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+}
+
+header h1 { margin: 0 0 2px; font-size: 20px; }
+.subtitulo { margin: 0 0 14px; color: var(--suave); font-size: 13px; }
+
+h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--suave); margin: 0 0 8px; }
+
+/* ---- Barra de ferramentas ---- */
+
+.barra {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  align-items: flex-end;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  background: var(--superficie);
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+}
+
+.grupo { display: flex; flex-direction: column; gap: 4px; }
+.grupo label { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--suave); }
+.grupo:has(button) { flex-direction: row; align-items: center; gap: 8px; }
+
+select, input, button {
+  font: inherit;
+  padding: 5px 8px;
+  border: 1px solid var(--borda);
+  border-radius: 5px;
+  background: var(--superficie);
+  color: inherit;
+}
+
+input[type="color"] { width: 46px; padding: 2px; height: 31px; cursor: pointer; }
+input[type="number"] { width: 74px; }
+
+button { cursor: pointer; }
+button:hover { border-color: var(--destaque); color: var(--destaque); }
+button.perigo:hover { border-color: var(--perigo); color: var(--perigo); }
+
+/* ---- Area de desenho ---- */
+
+main { display: flex; gap: 14px; align-items: flex-start; flex-wrap: wrap; }
+
+#palco {
+  position: relative;
+  line-height: 0;
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+}
+
+#palco canvas {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  /* Preserva os pixels rasterizados no Python quando o canvas e reescalado. */
+  image-rendering: pixelated;
+}
+
+/* A sobreposicao recebe o elastico e o destaque de selecao. Ela nunca vira
+   pixel na imagem: e apenas um guia visual, redesenhado a cada movimento. */
+#sobreposicao {
+  position: absolute;
+  inset: 0;
+  cursor: crosshair;
+}
+
+/* ---- Painel lateral ---- */
+
+#painel {
+  flex: 1 1 260px;
+  min-width: 260px;
+  padding: 12px 14px;
+  background: var(--superficie);
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+}
+
+#resumo { margin: 0; color: var(--suave); font-size: 13px; }
+
+#lista { list-style: none; margin: 10px 0 0; padding: 0; max-height: 320px; overflow: auto; }
+
+#lista li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px;
+  border-bottom: 1px solid var(--fundo);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 12px;
+}
+
+.amostra {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  border: 1px solid rgba(0, 0, 0, .25);
+  border-radius: 2px;
+}
+
+/* ---- Registro ---- */
+
+#areaLog { margin-top: 14px; }
+
+#log {
+  height: 150px;
+  overflow: auto;
+  padding: 8px 10px;
+  background: #0f172a;
+  color: #7dd3a0;
+  border-radius: 8px;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 12px;
+}
+
+#log div { padding: 1px 0; }
+#log .erro { color: #fca5a5; }

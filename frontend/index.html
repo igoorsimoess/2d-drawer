@@ -1,2 +1,84 @@
 <!doctype html>
-<title>Desenhador2D</title>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Desenhador2D</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Desenhador2D</h1>
+      <p class="subtitulo">
+        Rasterizacao propria (Bresenham e Midpoint) sobre um buffer RGBA em NumPy.
+      </p>
+    </header>
+
+    <section class="barra">
+      <div class="grupo">
+        <label for="ferramenta">Ferramenta</label>
+        <select id="ferramenta">
+          <option value="ponto">Ponto (1 clique)</option>
+          <option value="reta">Reta (2 cliques)</option>
+          <option value="circulo">Circulo (centro &rarr; borda)</option>
+          <option value="retangulo">Retangulo (canto &rarr; canto)</option>
+          <option value="triangulo">Triangulo (3 cliques)</option>
+        </select>
+      </div>
+
+      <div class="grupo">
+        <label for="cor">Cor</label>
+        <input type="color" id="cor" value="#006666" />
+      </div>
+
+      <div class="grupo">
+        <label for="espessura">Espessura</label>
+        <input type="number" id="espessura" value="3" min="1" max="100" step="1" />
+      </div>
+
+      <div class="grupo">
+        <label for="filtro">Redesenhar</label>
+        <select id="filtro">
+          <option value="all">Todos os tipos</option>
+          <option value="ponto">Somente pontos</option>
+          <option value="reta">Somente retas</option>
+          <option value="circulo">Somente circulos</option>
+          <option value="retangulo">Somente retangulos</option>
+          <option value="triangulo">Somente triangulos</option>
+        </select>
+        <button id="redesenhar" type="button">Redesenhar</button>
+      </div>
+
+      <div class="grupo">
+        <button id="limparTela" type="button" title="Apaga os pixels, mantem a ED">
+          Limpar tela
+        </button>
+        <button id="limparTudo" type="button" class="perigo" title="Apaga os pixels e a ED">
+          Limpar tudo
+        </button>
+      </div>
+    </section>
+
+    <main>
+      <div id="palco">
+        <canvas id="tela" width="800" height="600"></canvas>
+        <canvas id="sobreposicao" width="800" height="600"></canvas>
+      </div>
+
+      <aside id="painel">
+        <section>
+          <h2>Estrutura de dados</h2>
+          <p id="resumo">Nenhum primitivo na figura.</p>
+          <ul id="lista"></ul>
+        </section>
+      </aside>
+    </main>
+
+    <section id="areaLog">
+      <h2>Registro</h2>
+      <div id="log"></div>
+    </section>
+
+    <script src="/static/canvas.js"></script>
+  </body>
+</html>
